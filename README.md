@@ -6,7 +6,7 @@
 
 #Changelog
 ####0.1.0
-完成复制下载链接地址功能(Chrome 52)
+完成复制下载链接地址功能(Chrome 52)<br>
 完成添加下载任务到Aria2功能(Chrome 52)
 
 #TODO
