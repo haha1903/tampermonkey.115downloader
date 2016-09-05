@@ -29,7 +29,7 @@
     var CONFIG = {
         showCopy: 1,
         showAriaDownload: 1,
-        showNASDownload: 1
+        showNASDownload: 0
     };
 
     // 115 内置对象
