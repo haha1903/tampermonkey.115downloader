@@ -10,7 +10,7 @@
 // @include     http*://115.com/?aid=-1&search*
 // @downloadURL https://github.com/luoweihua7/tampermonkey.115downloader/raw/master/115downloader.user.js
 // @updateURL   https://github.com/luoweihua7/tampermonkey.115downloader/raw/master/115downloader.user.js
-// @version     0.5.0
+// @version     0.6.0
 // @grant       unsafeWindow
 // @grant       GM_setClipboard
 // @grant       GM_setValue
@@ -28,39 +28,196 @@
      */
     var CONFIG = {
         showCopy: 1,
-        showAriaDownload: 1
+        showAriaDownload: 1,
+
+        MAX_COUNT: 50
     };
 
     // 115 内置对象
     var Core = top.Core;
     var DialogBase = Core.DialogBase;
-    var Message = Core.MinMessage;
-    var Ajax = top.UA$.ajax;
+    var MinMessage = Core.MinMessage;
+    var Message = Core.Message;
+    var DownloadAjax = top.UA$.ajax;
+    var FilesAjax = top.APS$.ajax;
 
     var _toString = Object.prototype.toString;
 
-    /**
-     * 获取网盘文件的下载地址
-     * @param data
-     * @param callback
-     */
-    var getDownloadUrl = function (data, callback) {
-        Ajax({
-            url: 'files/download?pickcode=' + data.pickcode,
-            type: 'GET',
-            dataType: 'json',
-            cache: false,
-            success: function (json) {
-                if (json.state) {
-                    callback(json.file_url);
-                } else {
-                    callback();
+    var API = {
+        /**
+         * 获取单个文件下载地址
+         * @param data {Object} 参数 {filetype:0,pickcode:xxxx}
+         * @param callback {Function} 回调方法, 参数{url:'downloadurl',filename:'filename'}
+         */
+        getDownloadUrl: function (data, callback) {
+            var url = 'files/download?' + $.param({pickcode: data.pickcode});
+
+            DownloadAjax({
+                url: url,
+                type: 'GET',
+                dataType: 'json',
+                cache: false,
+                success: function (json) {
+                    if (json && json.state) {
+                        callback({url: json.file_url, filename: json.file_name});
+                    } else {
+                        callback();
+                    }
+                },
+                error: function (err) {
+                    callback(err);
                 }
-            },
-            error: function (err) {
-                callback(err);
+            });
+        },
+        getSingleFolder: function (data, callback) {
+            var url = 'natsort/files.php?' + $.param({cid: data.cid, asc: 1, offset: 0, limit: data.limit || 50});
+
+            FilesAjax({
+                url: url,
+                type: 'GET',
+                dataType: 'json',
+                cache: false,
+                success: function (json) {
+                    if (json && json.state) {
+                        if (json.data.length < json.count) {
+                            data = Object.assign({}, data, {limit: json.count + 1});
+                            API.getSingleFolder(data, callback);
+                        } else {
+                            callback(json.data);
+                        }
+                    } else {
+                        callback([]); // 容错,服务器返回数据错误,一般是115调整了接口导致
+                    }
+                },
+                error: function (err) {
+                    callback(err);
+                }
+            });
+        },
+        /**
+         * 获取多个文件的下载地址
+         * @param files
+         */
+        getDownloadUrls: function (files, callback) {
+            if (!Array.isArray(files)) {
+                throw 'files not array';
             }
-        });
+
+            var urls = [];
+
+            function getUrl(data) {
+                return new Promise(function (resolve, reject) {
+                    API.getDownloadUrl(data, function (json) {
+                        if (json instanceof Error || typeof json === 'undefined') {
+                            reject();
+                        } else {
+                            urls.push(json);
+                            resolve();
+                        }
+                    });
+                });
+            }
+
+            var first = getUrl(files.shift());
+
+            var promise = files.reduce(function (p, current) {
+                return p.then(function () {
+                    return getUrl(current);
+                }, function () {
+                    return getUrl(current);
+                });
+            }, first);
+
+            promise.then(function () {
+                callback(urls);
+            }, function () {
+                callback(urls);
+            });
+        },
+        /**
+         * 获取选中文件(夹)的下载地址
+         * @param list {Object} 参数,其中filetype为1表示目录,0表示文件 [{filetype:1,cid:863173392625567454,filename:'目录名'},{filetype:0,filename:'文件名',pickcode:'cxqmf91c5rj1cddq8'}]
+         * @param callback
+         */
+        getFilesUrls: function (list, callback) {
+            //文件pickcode列表,最终根据这个来获取所有的下载地址
+            var files = [];
+
+            function dispatch(data) {
+                if (data.filetype == 0) {
+                    // 目录
+                    return new Promise(function (resolve, reject) {
+                        API.getSingleFolder(data, function (list) {
+                            if (list instanceof Error) {
+                                reject();
+                            } else {
+                                list.forEach(function (file) {
+                                    files.push({
+                                        filetype: 0,
+                                        filename: file.n,  //name
+                                        pickcode: file.pc  //pickcode
+                                    });
+                                });
+                                resolve();
+                            }
+                        });
+                    });
+                } else {
+                    return new Promise(function (resolve) {
+                        files.push(data);
+                        resolve();
+                    });
+                }
+            }
+
+            function handle() {
+                function goGetUrls() {
+                    UI.showLoading();
+                    API.getDownloadUrls(files, function (urls) {
+                        UI.hideLoading();
+                        callback(urls);
+                    });
+                }
+
+                if (files.length > CONFIG.MAX_COUNT) {
+                    UI.hideLoading();
+                    Message.Confirm({
+                        text: `有超过${CONFIG.MAX_COUNT}个文件需要处理,是否继续?`,
+                        callback: function (confirm) {
+                            if (confirm) {
+                                goGetUrls();
+                            }
+                        }
+                    });
+                } else {
+                    goGetUrls();
+                }
+            }
+
+            if (!Array.isArray(list)) {
+                callback(new Error('list not array'));
+                return;
+            }
+
+            UI.showLoading();
+
+            // 初始值
+            var first = dispatch(list.shift());
+
+            var promise = list.reduce(function (p, current) {
+                return p.then(function () {
+                    return dispatch(current);
+                }, function () {
+                    return dispatch(current);
+                });
+            }, first);
+
+            promise.then(function () {
+                handle();
+            }, function () {
+                handle();
+            });
+        }
     };
 
     /**
@@ -151,11 +308,13 @@
          * 添加下载任务
          * @param uri {String} 下载地址
          */
-        addUri: function (uri) {
+        addUri: function (uri, options) {
             var config = this.config;
             var url = config.url + '?tm=' + Date.now();
             var params = [];
             var data;
+
+            options = options || {};
 
             if (config.token) {
                 params.push('token:' + config.token);
@@ -166,8 +325,11 @@
             params.push([uri]);
             //这是Aria下载参数,使用默认,后续开放设置
             params.push({
-                //保存路径
-                //"out": '/downloads',
+                //文件名
+                "out": options.out || '',
+
+                //保存目录
+                //"dir" '/data/downloads/',
 
                 //分块下载
                 "split": "5",
@@ -177,6 +339,9 @@
 
                 //分享率(BT)
                 //"seed-ratio": "1.0",
+
+                //做种时间(分钟)
+                //"seed-time": "120",
 
                 //自定义header头
                 "header": "Cookie: " + unsafeWindow.document.cookie
@@ -204,7 +369,7 @@
                 error: function () {
                     UI.showMessage('添加任务失败', 'err');
                 }
-            })
+            });
         }
     };
 
@@ -214,11 +379,18 @@
     var UI = {
         buttons: [],
         showMessage: function (text, type) {
-            Message.Show({
+            MinMessage.Show({
                 type: type,
                 text: text,
                 timeout: 2000
             });
+        },
+        showLoading: function (options) {
+            options = options || {};
+            MinMessage.Show({text: options.text || '处理中,请稍候', type: 'load', timeout: options.timeout || 0});
+        },
+        hideLoading: function () {
+            MinMessage.Hide();
         },
         confirm: function (params, onSubmit, onCancel) {
             var buttomEl = `<div class="dialog-action"><a href="javascript:;" class="dgac-cancel" btn="cancel">取消</a><a href="javascript:;" class="dgac-confirm" btn="confirm">确定</a></div>`;
@@ -272,12 +444,12 @@
 
                 // 按钮点击事件
                 $link.off('click').on('click', function (e) {
-                    getDownloadUrl({pickcode: $li.attr('pick_code')}, function (data) {
+                    API.getDownloadUrl({pickcode: $li.attr('pick_code')}, function (data) {
                         var type = _toString.apply(data);
 
                         if (type == '[object String]') {
                             var func = App[operate];
-                            func(data);
+                            func(data.url, {out: data.filename});
                         } else if (type == '[object Undefined]') {
                             // 请求后台成功,返回数据错误
                             UI.showMessage('获取链接失败', 'war');
@@ -301,6 +473,71 @@
                 }
             }
         },
+        addMenuButtons: function () {
+            var $menus = $('#js_operate_box ul');
+            var buttons = [
+                {menu: 'copyLinks', text: '复制下载链接'},
+                {menu: 'aria2Download', text: 'Aria2下载'}
+            ];
+            var actions = {
+                copyLinks: function (e) {
+                    actions._getUrls(function (list) {
+                        var length = list.length;
+                        var urls = list.map(function (file) {
+                            return file.url;
+                        });
+                        GM_setClipboard(urls.join('\r\n'));
+                        UI.showMessage(`${length}个文件下载地址已复制`, 'suc');
+                    });
+
+
+                    e.stopPropagation();
+                    e.preventDefault();
+                },
+                aria2Download: function (e) {
+                    actions._getUrls(function (urls) {
+                        function handle(data) {
+                            return new Promise(function (resolve, reject) {
+                                ARIA2.addUri(data.url, {out: data.filename});
+                            });
+                        }
+                    });
+
+                    e.stopPropagation();
+                    e.preventDefault();
+                },
+                _getUrls: function (callback) {
+                    var $lis = $("#js_data_list li.selected");
+                    var list = [];
+
+                    $lis.each(function () {
+                        var filetype = this.getAttribute('file_type');
+                        var cid = this.getAttribute('cate_id');
+                        var pickcode = this.getAttribute('pick_code');
+                        var filename = this.getAttribute('title');
+
+                        list.push({
+                            filetype: filetype,
+                            cid: cid,
+                            filename: filename,
+                            pickcode: pickcode
+                        });
+                    });
+
+                    API.getFilesUrls(list, function (urls) {
+                        callback(urls || []);
+                    });
+                }
+            };
+
+            buttons.forEach(function (button) {
+                var menuTpl = `<li menu="${button.menu}"><span>${button.text}</span></li>`;
+                var $menu = $(menuTpl);
+
+                $menus.append($menu);
+                $menu.off('click').on('click', actions[button.menu]);
+            });
+        }
     };
 
     var App = {
@@ -315,8 +552,11 @@
             }
 
             // 监听列表变化,然后添加按钮
-            var observer = new MutationObserver(UI.addButtons);
-            observer.observe(document.querySelector('#js_data_list'), {'childList': true});
+            var listObserver = new MutationObserver(UI.addButtons);
+            listObserver.observe(document.querySelector('#js_data_list'), {'childList': true});
+
+            var menuObserver = new MutationObserver(UI.addMenuButtons);
+            menuObserver.observe(document.querySelector('#js_operate_box'), {'childList': true});
         },
         copyUrl: function (url) {
             GM_setClipboard(url);
