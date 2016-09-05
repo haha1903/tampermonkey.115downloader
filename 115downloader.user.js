@@ -5,12 +5,12 @@
 // @supportURL  https://github.com/luoweihua7/tampermonkey.115downloader/issues
 // @description 115网盘下载插件,提供复制下载链接到剪切版,添加到Aria下载功能(添加到群晖DS功能暂未开始写)
 // @author      luoweihua7
-// @icon        https://github.com/luoweihua7/tampermonkey.115downloader/raw/master/icon.ico
+// @icon        http://115.com/web_icon.jpg
 // @include     http*://115.com/?ct=file*
 // @include     http*://115.com/?aid=-1&search*
 // @downloadURL https://github.com/luoweihua7/tampermonkey.115downloader/raw/master/115downloader.user.js
 // @updateURL   https://github.com/luoweihua7/tampermonkey.115downloader/raw/master/115downloader.user.js
-// @version     0.2.0
+// @version     0.3.0
 // @grant       unsafeWindow
 // @grant       GM_setClipboard
 // @grant       GM_setValue
@@ -21,6 +21,16 @@
 
 (function () {
     'use strict';
+
+    /**
+     * 功能按钮开关
+     * 不需要的设置为0即可
+     */
+    var CONFIG = {
+        showCopy: 1,
+        showAriaDownload: 1,
+        showNASDownload: 1
+    };
 
     // 115 内置对象
     var Core = top.Core;
@@ -35,7 +45,7 @@
      * @param data
      * @param callback
      */
-    var getUrl = function (data, callback) {
+    var getDownloadUrl = function (data, callback) {
         Ajax({
             url: 'files/download?pickcode=' + data.pickcode,
             type: 'GET',
@@ -116,7 +126,7 @@
         },
         showConf: function () {
             var conf = this.config.conf;
-            var content = `<div class="dialog-input"><input type="text" rel="txt" class="text" /></div>`;
+            var content = `<div class="dialog-input"><input type="text" rel="txt" class="text" placeholder="http://localhost:6800/jsonrpc" /></div>`;
             var options = {
                 content: content,
                 title: '设置RPC地址'
@@ -198,9 +208,29 @@
     };
 
     /**
+     * 群晖Download Station下载
+     */
+    var NAS = {
+        config: {},
+        init: function () {
+
+        },
+        setConf: function () {
+
+        },
+        showConf: function () {
+
+        },
+        addUri: function () {
+
+        }
+    };
+
+    /**
      * 插件界面UI(沿用115原生UI)
      */
     var UI = {
+        buttons: [],
         showMessage: function (text, type) {
             Message.Show({
                 type: type,
@@ -230,26 +260,31 @@
         },
         addButtons: function () {
             var opers = document.querySelectorAll("#js_data_list_outer .file-opr");
+            var linkMap = {
+                copyUrl: {menu: 'copy-link', icon: 'ico-copy', text: '复制下载链接'},
+                aria2Download: {menu: 'aria2-download', icon: 'ico-download', text: 'ARIA2下载'},
+                nasDownload: {menu: 'nas-download', icon: 'ico-download', text: 'NAS下载'},
+            };
+            var buttons = UI.buttons;
             var oper;
 
             function addButton(container, operate) {
-                var linkMap = {
-                    copyUrl: {menu: 'copy-link', icon: 'ico-copy', text: '复制'},
-                    aria2Download: {menu: 'aria2-download', icon: 'ico-download', text: 'ARIA2下载'},
-                    nasDownload: {menu: 'nas-download', icon: 'ico-download', text: 'NAS下载'},
-                };
                 var link = linkMap[operate];
                 var tpl = `<a menu="${link.menu}"><i class="icon ${link.icon}"></i><span>${link.text}</span></a>`;
                 var $container = $(container);
                 var $link = $(tpl);
+                var $li = $container.closest('li');
 
-                $container.append($link);
+                if ($li.attr('file_type') == 0) {
+                    // 目录,暂时跳过
+                    return;
+                }
+
+                $container.prepend($link);
 
                 // 按钮点击事件
                 $link.off('click').on('click', function (e) {
-                    var $li = $container.closest('li');
-
-                    getUrl({pickcode: $li.attr('pick_code')}, function (data) {
+                    getDownloadUrl({pickcode: $li.attr('pick_code')}, function (data) {
                         var type = _toString.apply(data);
 
                         if (type == '[object String]') {
@@ -272,9 +307,9 @@
                 if (opers.hasOwnProperty(i)) {
                     oper = opers[i];
 
-                    addButton(oper, 'copyUrl');
-                    addButton(oper, 'aria2Download');
-                    addButton(oper, 'nasDownload');
+                    buttons.forEach(function (button) {
+                        addButton(oper, button);
+                    });
                 }
             }
         },
@@ -282,7 +317,19 @@
 
     var App = {
         init: function () {
-            ARIA2.init();
+            if (CONFIG.showCopy) {
+                UI.buttons.push('copyUrl');
+            }
+
+            if (CONFIG.showAriaDownload) {
+                ARIA2.init();
+                UI.buttons.push('aria2Download');
+            }
+
+            if (CONFIG.showNASDownload) {
+                NAS.init();
+                UI.buttons.push('nasDownload');
+            }
 
             // 监听列表变化,然后添加按钮
             var observer = new MutationObserver(UI.addButtons);
@@ -296,6 +343,7 @@
             ARIA2.addUri(url);
         },
         nasDownload: function (url) {
+            NAS.download(url);
             UI.showMessage('已添加到NAS下载', 'suc');
         }
     };
