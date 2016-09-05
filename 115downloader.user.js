@@ -132,13 +132,14 @@
                 title: '设置RPC地址'
             };
             var $input;
-            var dialog = UI.confirm(options, function () {
+            var dialog = UI.confirm(options, function (e) {
                 var val = $input.val();
 
                 ARIA2.setConf(val, function () {
                     typeof dialog.Close === 'function' && dialog.Close();
                     UI.showMessage('RPC地址已保存', 'suc');
                 }, function () {
+                    e.cancel = true;
                     UI.showMessage('Aria2配置不正确', 'err');
                 });
             });
@@ -231,7 +232,14 @@
             dialog.Open(null);
             dialog.$el = $content.eq(0); // 只返回内容部分,title和按钮区域不返回
             dialog.$buttons = $content.eq(1);
-            dialog.$buttons.find('.dgac-confirm').on('click', onSubmit || $.noop);
+            dialog.$buttons.find('.dgac-confirm').on('click', function (e) {
+                typeof onSubmit === 'function' && onSubmit(e);
+
+                if (e.cancel !== true) {
+                    // 不关闭
+                    typeof dialog.Close === 'function' && dialog.Close();
+                }
+            });
             dialog.$buttons.find('.dgac-cancel').on('click', function () {
                 typeof onCancel === 'function' && onCancel();
                 typeof dialog.Close === 'function' && dialog.Close();
