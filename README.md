@@ -1,5 +1,5 @@
 又一个轮子<br>
-这是一个tampermonkey脚本，需要安装tampermonkey后使用。
+这是一个tampermonkey脚本，需要[安装tampermonkey](https://chrome.google.com/webstore/detail/tampermonkey/dhdgffkkebhmkfjojejmpbldmpobfkfo)后使用。
 
 ##优点
 使用了115原版到ui，看起来更美观（嗯，就是这样)
