@@ -444,19 +444,26 @@
 
                 // 按钮点击事件
                 $link.off('click').on('click', function (e) {
-                    API.getDownloadUrl({pickcode: $li.attr('pick_code')}, function (data) {
-                        var type = _toString.apply(data);
+                    var filetype = $li.attr('file_type');
 
-                        if (type == '[object String]') {
-                            var func = App[operate];
-                            func(data.url, {out: data.filename});
-                        } else if (type == '[object Undefined]') {
-                            // 请求后台成功,返回数据错误
-                            UI.showMessage('获取链接失败', 'war');
-                        } else {
-                            UI.showMessage('获取链接失败', 'err');
-                        }
-                    });
+                    if (filetype == 0) {
+                        // 目录
+
+                    } else {
+                        API.getDownloadUrl({pickcode: $li.attr('pick_code')}, function (data) {
+                            var type = _toString.apply(data);
+
+                            if (type == '[object String]') {
+                                var func = App[operate];
+                                func(data.url, {out: data.filename});
+                            } else if (type == '[object Undefined]') {
+                                // 请求后台成功,返回数据错误
+                                UI.showMessage('获取链接失败', 'war');
+                            } else {
+                                UI.showMessage('获取链接失败', 'err');
+                            }
+                        });
+                    }
 
                     e.stopPropagation();
                     e.preventDefault();
@@ -475,12 +482,13 @@
         },
         addMenuButtons: function () {
             var $menus = $('#js_operate_box ul');
-            var buttons = [
-                {menu: 'copyLinks', text: '复制下载链接'},
-                {menu: 'aria2Download', text: 'Aria2下载'}
-            ];
+            var buttons = UI.buttons;
+            var buttonMap = {
+                copyUrl: {menu: 'copyUrl', text: '复制下载链接'},
+                aria2Download: {menu: 'aria2Download', text: 'Aria2下载'}
+            };
             var actions = {
-                copyLinks: function (e) {
+                copyUrl: function (e) {
                     actions._getUrls(function (list) {
                         var length = list.length;
                         var urls = list.map(function (file) {
@@ -530,7 +538,8 @@
                 }
             };
 
-            buttons.forEach(function (button) {
+            buttons.forEach(function (cmd) {
+                var button = buttonMap[cmd];
                 var menuTpl = `<li menu="${button.menu}"><span>${button.text}</span></li>`;
                 var $menu = $(menuTpl);
 
