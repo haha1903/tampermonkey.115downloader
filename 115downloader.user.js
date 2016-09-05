@@ -1,9 +1,9 @@
 // ==UserScript==
-// @name        115-Downloader
+// @name        115Downloader
 // @namespace   https://github.com/luoweihua7/tampermonkey.115downloader
 // @homepageURL https://github.com/luoweihua7/tampermonkey.115downloader
 // @supportURL  https://github.com/luoweihua7/tampermonkey.115downloader/issues
-// @description 115网盘下载插件,提供复制下载链接到剪切版,添加到Aria下载功能(添加到群晖DS功能暂未完成)
+// @description 115网盘下载插件,提供复制下载链接到剪切版,添加到Aria下载功能(添加到群晖DS功能暂未开始写)
 // @author      luoweihua7
 // @icon        https://github.com/luoweihua7/tampermonkey.115downloader/raw/master/icon.ico
 // @include     http*://115.com/?ct=file*
@@ -12,7 +12,6 @@
 // @updateURL   https://github.com/luoweihua7/tampermonkey.115downloader/raw/master/115downloader.user.js
 // @version     0.1.0
 // @grant       unsafeWindow
-// @grant       GM_xmlhttpRequest
 // @grant       GM_setClipboard
 // @grant       GM_setValue
 // @grant       GM_getValue
@@ -60,7 +59,7 @@
      */
     var ARIA2 = {
         config: {
-            regex: /^(http\:\/\/|https\:\/\/)?(token:(.*)@)*(.*)(\:(\d+))\/jsonrpc$/,
+            regex: /^(http\:\/\/|https\:\/\/)?((.*):(.*)?@)?([a-zA-Z0-9\.-_]*)(\:(\d+))\/jsonrpc$/,
             conf: '',
             url: '',
             protocol: '',
@@ -71,6 +70,15 @@
         init: function () {
             var conf = GM_getValue('aria2_conf') || 'http://localhost:6800/jsonrpc';
             this.setConf(conf);
+
+            // 添加Aria2的设置按钮
+            var $container = $('#js_top_panel_box #js-ch-member-info_box .tup-logout');
+            var $setting = $('<a href="javascript:;"><span>Aria2设置</span></a>');
+
+            $container.prepend($setting);
+            $setting.off('click').on('click', function (e) {
+                ARIA2.showConf();
+            });
         },
         setConf: function (conf, onSuccess, onFail) {
             var config = this.config;
@@ -78,14 +86,27 @@
 
             if (regex.test(conf)) {
                 GM_setValue('aria2_conf', conf);
-                conf.replace(regex, function (match, $1, $2, $3, $4, $5, $6) {
+                conf.replace(regex, function (match, $1, $2, $3, $4, $5, $6, $7) {
+                    // 兼容user:password的模式和token的模式
+                    var user = '', password = '', token = '';
+                    if ($3 && $4) {
+                        if ($3 === 'token') {
+                            token = $4;
+                        } else {
+                            user = $3;
+                            password = $4;
+                        }
+                    }
+
                     config = Object.assign(config, {
                         conf: conf,
-                        url: $1 + $4 + ($6 ? (':' + $6) : '') + '/jsonrpc',
+                        url: $1 + $5 + ($7 ? (':' + $7) : '') + '/jsonrpc',
                         protocol: $1,
-                        token: $3 || '',
-                        host: $4,
-                        port: $6
+                        token: token,
+                        user: user,
+                        password: password,
+                        host: $5,
+                        port: $7
                     });
                 });
                 onSuccess && onSuccess();
@@ -105,16 +126,20 @@
                 var val = $input.val();
 
                 ARIA2.setConf(val, function () {
-                    dialog.Hide && dialog.Hide();
+                    dialog.Close && dialog.Close();
                     UI.showMessage('RPC地址已保存', 'suc');
                 }, function () {
                     UI.showMessage('Aria2地址不正确', 'err');
                 });
             });
 
-            $input = dialog.$el.find('.dialog-input input')
+            $input = dialog.$el.find('input.text');
             $input.val(conf);
         },
+        /**
+         * 添加下载任务
+         * @param uri {String} 下载地址
+         */
         addUri: function (uri) {
             var config = this.config;
             var url = config.url + '?tm=' + Date.now();
@@ -123,7 +148,10 @@
 
             if (config.token) {
                 params.push('token:' + config.token);
+            } else if (config.user && config.password) {
+                params.push(config.user + ':' + config.password);
             }
+
             params.push([uri]);
             //这是Aria下载参数,使用默认,后续开放设置
             params.push({
@@ -149,9 +177,6 @@
                 id: Date.now(),
                 params: params
             }];
-
-            console.clear();
-            console.log(data);
 
             $.ajax({
                 url: url,
@@ -193,9 +218,13 @@
             });
 
             dialog.Open(null);
-            dialog.$el = $content;
-            $content.find('.dialog-bottom .dgac-confirm').on('click', onSubmit || $.noop);
-            $content.find('.dialog-bottom .dgac-cancel').on('click', onCancel || $.noop);
+            dialog.$el = $content.eq(0); // 只返回内容部分,title和按钮区域不返回
+            dialog.$buttons = $content.eq(1);
+            dialog.$buttons.find('.dgac-confirm').on('click', onSubmit || $.noop);
+            dialog.$buttons.find('.dgac-cancel').on('click', function () {
+                onCancel && onCancel();
+                dialog.Close && dialog.Close();
+            });
 
             return dialog;
         },
@@ -254,8 +283,6 @@
     var App = {
         init: function () {
             ARIA2.init();
-
-            // 添加ARIA的设置按钮
 
             // 监听列表变化,然后添加按钮
             var observer = new MutationObserver(UI.addButtons);
