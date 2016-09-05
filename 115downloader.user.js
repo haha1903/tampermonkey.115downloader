@@ -3,14 +3,14 @@
 // @namespace   https://github.com/luoweihua7/tampermonkey.115downloader
 // @homepageURL https://github.com/luoweihua7/tampermonkey.115downloader
 // @supportURL  https://github.com/luoweihua7/tampermonkey.115downloader/issues
-// @description 115网盘下载插件,提供复制下载链接到剪切版,添加到Aria下载功能(添加到群晖DS功能暂未开始写)
+// @description 115网盘下载插件,提供复制下载链接到剪贴板,添加到Aria下载功能
 // @author      luoweihua7
 // @icon        http://115.com/web_icon.jpg
 // @include     http*://115.com/?ct=file*
 // @include     http*://115.com/?aid=-1&search*
 // @downloadURL https://github.com/luoweihua7/tampermonkey.115downloader/raw/master/115downloader.user.js
 // @updateURL   https://github.com/luoweihua7/tampermonkey.115downloader/raw/master/115downloader.user.js
-// @version     0.3.0
+// @version     0.5.0
 // @grant       unsafeWindow
 // @grant       GM_setClipboard
 // @grant       GM_setValue
@@ -28,8 +28,7 @@
      */
     var CONFIG = {
         showCopy: 1,
-        showAriaDownload: 1,
-        showNASDownload: 0
+        showAriaDownload: 1
     };
 
     // 115 内置对象
@@ -69,6 +68,7 @@
      */
     var ARIA2 = {
         config: {
+            key: 'aria2_conf',
             regex: /^(http\:\/\/|https\:\/\/)?((.*):(.*)?@)?([a-zA-Z0-9\.-_]*)(\:(\d+))\/jsonrpc$/,
             conf: '',
             url: '',
@@ -78,7 +78,7 @@
             port: 6800
         },
         init: function () {
-            var conf = GM_getValue('aria2_conf') || 'http://localhost:6800/jsonrpc';
+            var conf = GM_getValue(ARIA2.config.key) || 'http://localhost:6800/jsonrpc';
             this.setConf(conf);
 
             // 添加Aria2的设置按钮
@@ -95,7 +95,7 @@
             var regex = config.regex;
 
             if (regex.test(conf)) {
-                GM_setValue('aria2_conf', conf);
+                GM_setValue(ARIA2.config.key, conf);
                 conf.replace(regex, function (match, $1, $2, $3, $4, $5, $6, $7) {
                     // 兼容user:password的模式和token的模式
                     var user = '', password = '', token = '';
@@ -119,9 +119,9 @@
                         port: $7
                     });
                 });
-                onSuccess && onSuccess();
+                typeof onSuccess === 'function' && onSuccess();
             } else {
-                onFail && onFail();
+                typeof onFail === 'function' && onFail();
             }
         },
         showConf: function () {
@@ -136,10 +136,10 @@
                 var val = $input.val();
 
                 ARIA2.setConf(val, function () {
-                    dialog.Close && dialog.Close();
+                    typeof dialog.Close === 'function' && dialog.Close();
                     UI.showMessage('RPC地址已保存', 'suc');
                 }, function () {
-                    UI.showMessage('Aria2地址不正确', 'err');
+                    UI.showMessage('Aria2配置不正确', 'err');
                 });
             });
 
@@ -208,25 +208,6 @@
     };
 
     /**
-     * 群晖Download Station下载
-     */
-    var NAS = {
-        config: {},
-        init: function () {
-
-        },
-        setConf: function () {
-
-        },
-        showConf: function () {
-
-        },
-        addUri: function () {
-
-        }
-    };
-
-    /**
      * 插件界面UI(沿用115原生UI)
      */
     var UI = {
@@ -235,7 +216,7 @@
             Message.Show({
                 type: type,
                 text: text,
-                timeout: 3000
+                timeout: 2000
             });
         },
         confirm: function (params, onSubmit, onCancel) {
@@ -252,8 +233,8 @@
             dialog.$buttons = $content.eq(1);
             dialog.$buttons.find('.dgac-confirm').on('click', onSubmit || $.noop);
             dialog.$buttons.find('.dgac-cancel').on('click', function () {
-                onCancel && onCancel();
-                dialog.Close && dialog.Close();
+                typeof onCancel === 'function' && onCancel();
+                typeof dialog.Close === 'function' && dialog.Close();
             });
 
             return dialog;
@@ -262,8 +243,7 @@
             var opers = document.querySelectorAll("#js_data_list_outer .file-opr");
             var linkMap = {
                 copyUrl: {menu: 'copy-link', icon: 'ico-copy', text: '复制下载链接'},
-                aria2Download: {menu: 'aria2-download', icon: 'ico-download', text: 'ARIA2下载'},
-                nasDownload: {menu: 'nas-download', icon: 'ico-download', text: 'NAS下载'},
+                aria2Download: {menu: 'aria2-download', icon: 'ico-download', text: 'ARIA2下载'}
             };
             var buttons = UI.buttons;
             var oper;
@@ -326,11 +306,6 @@
                 UI.buttons.push('aria2Download');
             }
 
-            if (CONFIG.showNASDownload) {
-                NAS.init();
-                UI.buttons.push('nasDownload');
-            }
-
             // 监听列表变化,然后添加按钮
             var observer = new MutationObserver(UI.addButtons);
             observer.observe(document.querySelector('#js_data_list'), {'childList': true});
@@ -341,10 +316,6 @@
         },
         aria2Download: function (url) {
             ARIA2.addUri(url);
-        },
-        nasDownload: function (url) {
-            NAS.download(url);
-            UI.showMessage('已添加到NAS下载', 'suc');
         }
     };
 
