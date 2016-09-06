@@ -393,11 +393,11 @@
      */
     var UI = {
         buttons: [],
-        showMessage: function (text, type) {
+        showMessage: function (text, type, timeout) {
             MinMessage.Show({
                 type: type,
                 text: text,
-                timeout: 2000
+                timeout: timeout || 2000
             });
         },
         showLoading: function (options) {
@@ -603,7 +603,7 @@
 
             function complete() {
                 var result = total === resolveCount ? 1 : (total === errorCount ? -1 : 0);
-                var message, icon;
+                var message, icon, timeout;
 
                 UI.hideLoading();
                 switch (result) {
@@ -614,6 +614,7 @@
                     case 0:
                         message = `${total}个任务添加失败<br><span style="font-size:14px;">请检查Aria2配置是否正确<br>或者Aria2服务是否启动</span>`;
                         icon = 'err';
+                        timeout = 3500;
                         break;
                     case -1:
                         message = `已添加${resolveCount}个任务<br>${rejectCount}个任务添加失败`;
@@ -621,7 +622,7 @@
                         break;
                 }
 
-                UI.showMessage(message, icon);
+                UI.showMessage(message, icon, timeout);
             }
 
             if (total === 0) {
