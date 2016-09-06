@@ -9,7 +9,7 @@
 
 #Changelog
 ####1.0.0
-release 1.0.0
+[release 1.0.0](https://github.com/luoweihua7/tampermonkey.115downloader/releases/tag/1.0.0)
 ####0.9.0
 显示添加Aria2任务的进度
 ####0.8.0
