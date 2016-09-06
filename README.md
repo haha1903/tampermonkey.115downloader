@@ -36,4 +36,4 @@
 - [ ] Aria2参数可配置(rpc地址已支持，扩展参数后续支持)
 - [x] 支持目录
 - [x] 支持多选
-- [ ] 完成Chrome和Firefox到适配（可能不会去处理Firefox）`优先级低`
+- [ ] 完成Chrome和Firefox到适配（已弃Firefox,所以可能不会去处理）`优先级低`
