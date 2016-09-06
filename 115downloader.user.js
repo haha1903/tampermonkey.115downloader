@@ -4,13 +4,13 @@
 // @homepageURL https://github.com/luoweihua7/tampermonkey.115downloader
 // @supportURL  https://github.com/luoweihua7/tampermonkey.115downloader/issues
 // @description 115网盘下载插件,提供复制下载链接到剪贴板,添加到Aria下载功能
-// @author      luoweihua7
+// @author      f0rger
 // @icon        http://115.com/web_icon.jpg
 // @include     http*://115.com/?ct=file*
 // @include     http*://115.com/?aid=-1&search*
 // @downloadURL https://github.com/luoweihua7/tampermonkey.115downloader/raw/master/115downloader.user.js
 // @updateURL   https://github.com/luoweihua7/tampermonkey.115downloader/raw/master/115downloader.user.js
-// @version     0.6.0
+// @version     0.7.0
 // @grant       unsafeWindow
 // @grant       GM_setClipboard
 // @grant       GM_setValue
@@ -23,8 +23,7 @@
     'use strict';
 
     /**
-     * 功能按钮开关
-     * 不需要的设置为0即可
+     * 配置
      */
     var CONFIG = {
         showCopy: 1,
@@ -41,8 +40,10 @@
     var DownloadAjax = top.UA$.ajax;
     var FilesAjax = top.APS$.ajax;
 
-    var _toString = Object.prototype.toString;
-
+    /**
+     * 请求相关
+     * @type {{getDownloadUrl: API.getDownloadUrl, getSingleFolder: API.getSingleFolder, getDownloadUrls: API.getDownloadUrls, getFilesUrls: API.getFilesUrls, sequence: API.sequence}}
+     */
     var API = {
         /**
          * 获取单个文件下载地址
@@ -105,33 +106,25 @@
 
             var urls = [];
 
-            function getUrl(data) {
-                return new Promise(function (resolve, reject) {
-                    API.getDownloadUrl(data, function (json) {
-                        if (json instanceof Error || typeof json === 'undefined') {
-                            reject();
-                        } else {
-                            urls.push(json);
-                            resolve();
-                        }
-                    });
+            function action(data, resolve, reject) {
+                API.getDownloadUrl(data, function (json) {
+                    if (json instanceof Error || typeof json === 'undefined') {
+                        reject();
+                    } else {
+                        urls.push(json);
+                        resolve();
+                    }
                 });
             }
 
-            var first = getUrl(files.shift());
-
-            var promise = files.reduce(function (p, current) {
-                return p.then(function () {
-                    return getUrl(current);
-                }, function () {
-                    return getUrl(current);
-                });
-            }, first);
-
-            promise.then(function () {
+            function complete() {
                 callback(urls);
-            }, function () {
-                callback(urls);
+            }
+
+            API.sequence({
+                data: files,
+                action: action,
+                complete: complete
             });
         },
         /**
@@ -140,37 +133,38 @@
          * @param callback
          */
         getFilesUrls: function (list, callback) {
+            if (!Array.isArray(list)) {
+                callback(new Error('list not array'));
+                return;
+            }
+
             //文件pickcode列表,最终根据这个来获取所有的下载地址
             var files = [];
 
-            function dispatch(data) {
+            function action(data, resolve, reject) {
                 if (data.filetype == 0) {
-                    // 目录
-                    return new Promise(function (resolve, reject) {
-                        API.getSingleFolder(data, function (list) {
-                            if (list instanceof Error) {
-                                reject();
-                            } else {
-                                list.forEach(function (file) {
-                                    files.push({
-                                        filetype: 0,
-                                        filename: file.n,  //name
-                                        pickcode: file.pc  //pickcode
-                                    });
+                    // 目录,递归遍历自目录
+                    API.getSingleFolder(data, function (list) {
+                        if (list instanceof Error) {
+                            reject();
+                        } else {
+                            list.forEach(function (file) {
+                                files.push({
+                                    filetype: 0,
+                                    filename: file.n,  //name
+                                    pickcode: file.pc  //pickcode
                                 });
-                                resolve();
-                            }
-                        });
+                            });
+                            resolve();
+                        }
                     });
                 } else {
-                    return new Promise(function (resolve) {
-                        files.push(data);
-                        resolve();
-                    });
+                    files.push(data);
+                    resolve();
                 }
             }
 
-            function handle() {
+            function complete() {
                 function goGetUrls() {
                     UI.showLoading();
                     API.getDownloadUrls(files, function (urls) {
@@ -194,29 +188,56 @@
                 }
             }
 
-            if (!Array.isArray(list)) {
-                callback(new Error('list not array'));
-                return;
-            }
-
             UI.showLoading();
 
-            // 初始值
-            var first = dispatch(list.shift());
-
-            var promise = list.reduce(function (p, current) {
-                return p.then(function () {
-                    return dispatch(current);
-                }, function () {
-                    return dispatch(current);
-                });
-            }, first);
-
-            promise.then(function () {
-                handle();
-            }, function () {
-                handle();
+            API.sequence({
+                data: list,
+                action: action,
+                complete: complete
             });
+        },
+        /**
+         * 队列请求,不并发请求
+         * @param params {Object} 请求参数
+         * @param params.data {Array} 需要发起请求的数组
+         * @param params.action {Function} 单个请求的处理
+         * @param params.complete {Function} 处理完成后的请求
+         */
+        sequence: function (params) {
+            var list = params.data;
+            var action = params.action;
+            var complete = params.complete;
+
+            function handle(data) {
+                return new Promise(function (resolve, reject) {
+                    action(data, resolve, reject);
+                });
+            }
+
+            var first = handle(list.shift());
+            if (list.length == 0) {
+                // 只有一个请求需要处理
+                first.then(function () {
+                    complete();
+                }, function () {
+                    complete();
+                });
+            } else {
+                var promise = list.reduce(function (p, current) {
+                    return p.then(function () {
+                        return handle(current);
+                    }, function () {
+                        return handle(current);
+                    });
+                }, first);
+
+
+                promise.then(function () {
+                    complete();
+                }, function () {
+                    complete();
+                });
+            }
         }
     };
 
@@ -308,13 +329,14 @@
          * 添加下载任务
          * @param uri {String} 下载地址
          */
-        addUri: function (uri, options) {
+        addUri: function (uri, options, callback) {
             var config = this.config;
             var url = config.url + '?tm=' + Date.now();
             var params = [];
             var data;
 
             options = options || {};
+            callback = callback || $.noop;
 
             if (config.token) {
                 params.push('token:' + config.token);
@@ -358,16 +380,9 @@
                 url: url,
                 type: 'POST',
                 data: JSON.stringify(data),
-                success: function (json) {
-                    if (json && json.error) {
-                        var msg = json.error.message || '添加任务失败';
-                        UI.showMessage(msg, 'err');
-                    } else {
-                        UI.showMessage('添加任务成功', 'suc');
-                    }
-                },
+                success: callback,
                 error: function () {
-                    UI.showMessage('添加任务失败', 'err');
+                    callback();
                 }
             });
         }
@@ -418,50 +433,69 @@
             });
 
             return dialog;
+        }
+    };
+
+    /**
+     * 插件基本内容
+     * @type {{init: App.init, addButtons: App.addButtons, addMenuButtons: App.addMenuButtons, copyUrls: App.copyUrls, aria2Download: App.aria2Download}}
+     */
+    var App = {
+        init: function () {
+            if (CONFIG.showCopy) {
+                UI.buttons.push('copyUrls');
+            }
+
+            if (CONFIG.showAriaDownload) {
+                ARIA2.init();
+                UI.buttons.push('aria2Download');
+            }
+
+            // 监听列表变化,然后添加按钮
+            var listObserver = new MutationObserver(App.addButtons);
+            listObserver.observe(document.querySelector('#js_data_list'), {'childList': true});
+
+            var menuObserver = new MutationObserver(App.addMenuButtons);
+            menuObserver.observe(document.querySelector('#js_operate_box'), {'childList': true});
         },
         addButtons: function () {
             var opers = document.querySelectorAll("#js_data_list_outer .file-opr");
             var linkMap = {
-                copyUrl: {menu: 'copy-link', icon: 'ico-copy', text: '复制下载链接'},
-                aria2Download: {menu: 'aria2-download', icon: 'ico-download', text: 'ARIA2下载'}
+                copyUrls: {icon: 'ico-copy', text: '复制下载链接'},
+                aria2Download: {icon: 'ico-download', text: 'ARIA2下载'}
             };
             var buttons = UI.buttons;
             var oper;
 
             function addButton(container, operate) {
                 var link = linkMap[operate];
-                var tpl = `<a menu="${link.menu}"><i class="icon ${link.icon}"></i><span>${link.text}</span></a>`;
+                var tpl = `<a><i class="icon ${link.icon}"></i><span>${link.text}</span></a>`;
                 var $container = $(container);
                 var $link = $(tpl);
                 var $li = $container.closest('li');
-
-                if ($li.attr('file_type') == 0) {
-                    // 目录,暂时跳过
-                    return;
-                }
 
                 $container.prepend($link);
 
                 // 按钮点击事件
                 $link.off('click').on('click', function (e) {
+                    var action = App[operate];
                     var filetype = $li.attr('file_type');
+                    var list;
 
                     if (filetype == 0) {
-                        // 目录
+                        list = [{
+                            filetype: filetype,
+                            cid: $li.attr('cate_id'),
+                            filename: $li.attr('title'),
+                            pickcode: $li.attr('pick_code')
 
+                        }];
+
+                        // 目录
+                        API.getFilesUrls(list, action);
                     } else {
                         API.getDownloadUrl({pickcode: $li.attr('pick_code')}, function (data) {
-                            var type = _toString.apply(data);
-
-                            if (type == '[object String]') {
-                                var func = App[operate];
-                                func(data.url, {out: data.filename});
-                            } else if (type == '[object Undefined]') {
-                                // 请求后台成功,返回数据错误
-                                UI.showMessage('获取链接失败', 'war');
-                            } else {
-                                UI.showMessage('获取链接失败', 'err');
-                            }
+                            action([data]);
                         });
                     }
 
@@ -484,37 +518,17 @@
             var $menus = $('#js_operate_box ul');
             var buttons = UI.buttons;
             var buttonMap = {
-                copyUrl: {menu: 'copyUrl', text: '复制下载链接'},
-                aria2Download: {menu: 'aria2Download', text: 'Aria2下载'}
+                copyUrls: {action: 'copyUrls', text: '复制下载链接'},
+                aria2Download: {action: 'aria2Download', text: 'Aria2下载'}
             };
-            var actions = {
-                copyUrl: function (e) {
-                    actions._getUrls(function (list) {
-                        var length = list.length;
-                        var urls = list.map(function (file) {
-                            return file.url;
-                        });
-                        GM_setClipboard(urls.join('\r\n'));
-                        UI.showMessage(`${length}个文件下载地址已复制`, 'suc');
-                    });
 
+            buttons.forEach(function (cmd) {
+                var button = buttonMap[cmd];
+                var menuTpl = `<li><span>${button.text}</span></li>`;
+                var $menu = $(menuTpl);
 
-                    e.stopPropagation();
-                    e.preventDefault();
-                },
-                aria2Download: function (e) {
-                    actions._getUrls(function (urls) {
-                        function handle(data) {
-                            return new Promise(function (resolve, reject) {
-                                ARIA2.addUri(data.url, {out: data.filename});
-                            });
-                        }
-                    });
-
-                    e.stopPropagation();
-                    e.preventDefault();
-                },
-                _getUrls: function (callback) {
+                $menus.append($menu);
+                $menu.off('click').on('click', function (e) {
                     var $lis = $("#js_data_list li.selected");
                     var list = [];
 
@@ -532,47 +546,90 @@
                         });
                     });
 
-                    API.getFilesUrls(list, function (urls) {
-                        callback(urls || []);
-                    });
-                }
-            };
+                    API.getFilesUrls(list, App[button.action]);
 
-            buttons.forEach(function (cmd) {
-                var button = buttonMap[cmd];
-                var menuTpl = `<li menu="${button.menu}"><span>${button.text}</span></li>`;
-                var $menu = $(menuTpl);
-
-                $menus.append($menu);
-                $menu.off('click').on('click', actions[button.menu]);
+                    e.stopPropagation();
+                    e.preventDefault();
+                });
             });
-        }
-    };
+        },
+        /**
+         * 复制下载地址
+         * @param data {Array} 需要下载的内容列表,[{url:'xxxx',filename:'xxx.mp4'}]
+         */
+        copyUrls: function (data) {
+            var length = data.length;
+            var urls = data.map(function (item) {
+                return item.url;
+            });
+            var text = urls.join('\r\n');
 
-    var App = {
-        init: function () {
-            if (CONFIG.showCopy) {
-                UI.buttons.push('copyUrl');
+            if (length == 0) {
+                UI.showMessage(`所选内容无可下载的文件`, 'war');
+            } else {
+                GM_setClipboard(text);
+                UI.showMessage(`${length}个文件下载地址已复制`, 'suc');
+            }
+        },
+        /**
+         * 添加到Aria2下载
+         * @param data {Array} 需要下载的内容列表,[{url:'xxxx',filename:'xxx.mp4'}]
+         */
+        aria2Download: function (data) {
+            var total = data.length;
+            var resolveCount = 0;
+            var rejectCount = 0;
+            var errorCount = 0;
+
+            function action(item, resolve, reject) {
+                ARIA2.addUri(item.url, {out: item.filename}, function (json) {
+                    if (typeof json === 'undefined') {
+                        errorCount++;
+                        reject();
+                    } else {
+                        if (json && json.result) {
+                            resolveCount++;
+                            resolve();
+                        } else {
+                            rejectCount++;
+                            reject();
+                        }
+                    }
+                });
             }
 
-            if (CONFIG.showAriaDownload) {
-                ARIA2.init();
-                UI.buttons.push('aria2Download');
+            function complete() {
+                var result = total === resolveCount ? 1 : (total === errorCount ? -1 : 0);
+                var message, icon;
+
+                switch (result) {
+                    case 1:
+                        message = `已添加${total}个任务`;
+                        icon = 'suc';
+                        break;
+                    case 0:
+                        message = `${total}个任务添加失败<br><span style="font-size:14px;">请检查Aria2配置是否正确<br>或者Aria2服务是否启动</span>`;
+                        icon = 'err';
+                        break;
+                    case -1:
+                        message = `已添加${resolveCount}个任务<br>${rejectCount}个任务添加失败`;
+                        icon = 'war';
+                        break;
+                }
+
+                UI.showMessage(message, icon);
             }
 
-            // 监听列表变化,然后添加按钮
-            var listObserver = new MutationObserver(UI.addButtons);
-            listObserver.observe(document.querySelector('#js_data_list'), {'childList': true});
+            if (length === 0) {
+                UI.showMessage('所选内容无可下载的文件', 'war');
+                return;
+            }
 
-            var menuObserver = new MutationObserver(UI.addMenuButtons);
-            menuObserver.observe(document.querySelector('#js_operate_box'), {'childList': true});
-        },
-        copyUrl: function (url) {
-            GM_setClipboard(url);
-            UI.showMessage('链接已复制', 'suc');
-        },
-        aria2Download: function (url) {
-            ARIA2.addUri(url);
+            API.sequence({
+                data: data,
+                action: action,
+                complete: complete
+            });
         }
     };
 
