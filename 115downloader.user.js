@@ -10,7 +10,7 @@
 // @include     http*://115.com/?aid=-1&search*
 // @downloadURL https://github.com/luoweihua7/tampermonkey.115downloader/raw/master/115downloader.user.js
 // @updateURL   https://github.com/luoweihua7/tampermonkey.115downloader/raw/master/115downloader.user.js
-// @version     0.9.1
+// @version     1.0.0
 // @grant       unsafeWindow
 // @grant       GM_setClipboard
 // @grant       GM_setValue
