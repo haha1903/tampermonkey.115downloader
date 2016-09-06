@@ -580,9 +580,12 @@
             var resolveCount = 0;
             var rejectCount = 0;
             var errorCount = 0;
+            var index = 0;
 
             function action(item, resolve, reject) {
                 ARIA2.addUri(item.url, {out: item.filename}, function (json) {
+                    index++;
+                    UI.showLoading({text: `正在处理(${index}/${total})`});
                     if (typeof json === 'undefined') {
                         errorCount++;
                         reject();
@@ -602,6 +605,7 @@
                 var result = total === resolveCount ? 1 : (total === errorCount ? -1 : 0);
                 var message, icon;
 
+                UI.hideLoading();
                 switch (result) {
                     case 1:
                         message = `已添加${total}个任务`;
