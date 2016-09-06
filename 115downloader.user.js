@@ -614,7 +614,7 @@
                     case 0:
                         message = `${total}个任务添加失败<br><span style="font-size:14px;">请检查Aria2配置是否正确<br>或者Aria2服务是否启动</span>`;
                         icon = 'err';
-                        timeout = 3500;
+                        timeout = 5000;
                         break;
                     case -1:
                         message = `已添加${resolveCount}个任务<br>${rejectCount}个任务添加失败`;
