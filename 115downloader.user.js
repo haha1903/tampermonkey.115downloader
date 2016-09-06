@@ -629,6 +629,7 @@
                 return;
             }
 
+            UI.showMessage('添加Aria2任务', 'load');
             API.sequence({
                 data: data,
                 action: action,
