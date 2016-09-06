@@ -10,7 +10,7 @@
 // @include     http*://115.com/?aid=-1&search*
 // @downloadURL https://github.com/luoweihua7/tampermonkey.115downloader/raw/master/115downloader.user.js
 // @updateURL   https://github.com/luoweihua7/tampermonkey.115downloader/raw/master/115downloader.user.js
-// @version     0.8.0
+// @version     0.9.0
 // @grant       unsafeWindow
 // @grant       GM_setClipboard
 // @grant       GM_setValue
@@ -620,7 +620,7 @@
                 UI.showMessage(message, icon);
             }
 
-            if (length === 0) {
+            if (total === 0) {
                 UI.showMessage('所选内容无可下载的文件', 'war');
                 return;
             }
