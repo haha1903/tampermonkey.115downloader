@@ -7,7 +7,7 @@
 使用了115的几个内置对象,如果115修改代码,将会导致功能不可用<br>
 分分钟弃坑
 
-#＃预览
+##预览
 ![功能预览](https://github.com/luoweihua7/tampermonkey.115downloader/raw/master/screenshot.gif)
 
 #TODO
