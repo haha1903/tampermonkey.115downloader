@@ -1,4 +1,6 @@
 #Changelog
+####1.1.0
+文件的下载按钮直接下载,目录则保持原来的流程(115极速下载???)
 ####1.0.0
 [release 1.0.0](https://github.com/luoweihua7/tampermonkey.115downloader/releases/tag/1.0.0)
 ####0.9.0

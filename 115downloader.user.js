@@ -10,7 +10,7 @@
 // @include     http*://115.com/?aid=-1&search*
 // @downloadURL https://github.com/luoweihua7/tampermonkey.115downloader/raw/master/115downloader.user.js
 // @updateURL   https://github.com/luoweihua7/tampermonkey.115downloader/raw/master/115downloader.user.js
-// @version     1.0.0
+// @version     1.1.0
 // @grant       unsafeWindow
 // @grant       GM_setClipboard
 // @grant       GM_setValue
@@ -473,13 +473,15 @@
                 var $container = $(container);
                 var $link = $(tpl);
                 var $li = $container.closest('li');
+                var $body = $(document.body);
+                var filetype = $li.attr('file_type');
 
                 $container.prepend($link);
 
                 // 按钮点击事件
                 $link.off('click').on('click', function (e) {
                     var action = App[operate];
-                    var filetype = $li.attr('file_type');
+
                     var list;
 
                     if (filetype == 0) {
@@ -502,6 +504,22 @@
                     e.stopPropagation();
                     e.preventDefault();
                 });
+
+                if (filetype != 0) {
+                    //文件
+                    var $download = $('[menu="download_one"]');
+
+                    $download.off('click').on('click', function (e) {
+                        API.getDownloadUrl({pickcode: $li.attr('pick_code')}, function (data) {
+                            var iframe = `<iframe src="${data.url}" style="width:0px;height:0px;display:none;"></iframe>`
+
+                            $body.append(iframe);
+                        });
+
+                        e.stopPropagation();
+                        e.preventDefault();
+                    });
+                }
             }
 
             for (var i in opers) {
