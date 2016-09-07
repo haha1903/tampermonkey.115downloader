@@ -28,7 +28,7 @@
     var CONFIG = {
         showCopy: 1,
         showAriaDownload: 1,
-
+        directDownload: 1,
         MAX_COUNT: 50
     };
 
@@ -475,13 +475,13 @@
                 var $li = $container.closest('li');
                 var $body = $(document.body);
                 var filetype = $li.attr('file_type');
+                var $download = null;
 
                 $container.prepend($link);
 
                 // 按钮点击事件
                 $link.off('click').on('click', function (e) {
                     var action = App[operate];
-
                     var list;
 
                     if (filetype == 0) {
@@ -505,9 +505,9 @@
                     e.preventDefault();
                 });
 
-                if (filetype != 0) {
+                if (filetype != 0 && CONFIG.directDownload) {
                     //文件
-                    var $download = $('[menu="download_one"]');
+                    $download = $('[menu="download_one"]');
 
                     $download.off('click').on('click', function (e) {
                         API.getDownloadUrl({pickcode: $li.attr('pick_code')}, function (data) {
