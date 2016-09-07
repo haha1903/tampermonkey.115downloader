@@ -462,7 +462,7 @@
             var opers = document.querySelectorAll("#js_data_list_outer .file-opr");
             var linkMap = {
                 copyUrls: {icon: 'ico-copy', text: '复制下载链接'},
-                aria2Download: {icon: 'ico-download', text: 'ARIA2下载'}
+                aria2Download: {icon: 'ico-download', text: 'Aria2下载'}
             };
             var buttons = UI.buttons;
             var oper;
