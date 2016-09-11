@@ -497,6 +497,10 @@
                         API.getFilesUrls(list, action);
                     } else {
                         API.getDownloadUrl({pickcode: $li.attr('pick_code')}, function (data) {
+                            if (data instanceof Error) {
+                                UI.showMessage('获取下载地址失败', 'err');
+                                return;
+                            }
                             action([data]);
                         });
                     }
@@ -608,6 +612,10 @@
                         errorCount++;
                         reject();
                     } else {
+                        if (Array.isArray(json)) {
+                            json = json[0];
+                        }
+
                         if (json && json.result) {
                             resolveCount++;
                             resolve();
