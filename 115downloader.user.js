@@ -517,7 +517,11 @@
                         API.getDownloadUrl({pickcode: $li.attr('pick_code')}, function (data) {
                             var iframe = `<iframe src="${data.url}" style="width:0px;height:0px;display:none;"></iframe>`
 
-                            $body.append(iframe);
+                            var $iframe = $(iframe);
+                            $body.append($iframe);
+                            setTimeout(function () {
+                                $iframe.remove();
+                            }, 5000);
                         });
 
                         e.stopPropagation();
