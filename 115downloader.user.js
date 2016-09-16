@@ -481,22 +481,23 @@
 
                 // 按钮点击事件
                 $link.off('click').on('click', function (e) {
+                    var _$li = $(e.target).closest('li');
+                    var filetype = _$li.attr('file_type');
                     var action = App[operate];
                     var list;
 
                     if (filetype == 0) {
                         list = [{
                             filetype: filetype,
-                            cid: $li.attr('cate_id'),
-                            filename: $li.attr('title'),
-                            pickcode: $li.attr('pick_code')
-
+                            cid: _$li.attr('cate_id'),
+                            filename: _$li.attr('title'),
+                            pickcode: _$li.attr('pick_code')
                         }];
 
                         // 目录
                         API.getFilesUrls(list, action);
                     } else {
-                        API.getDownloadUrl({pickcode: $li.attr('pick_code')}, function (data) {
+                        API.getDownloadUrl({pickcode: _$li.attr('pick_code')}, function (data) {
                             if (data instanceof Error) {
                                 UI.showMessage('获取下载地址失败', 'err');
                                 return;
@@ -514,8 +515,9 @@
                     $download = $('[menu="download_one"]');
 
                     $download.off('click').on('click', function (e) {
-                        API.getDownloadUrl({pickcode: $li.attr('pick_code')}, function (data) {
-                            var iframe = `<iframe src="${data.url}" style="width:0px;height:0px;display:none;"></iframe>`
+                        var _$li = $(e.target).closest('li');
+                        API.getDownloadUrl({pickcode: _$li.attr('pick_code')}, function (data) {
+                            var iframe = `<iframe src="${data.url}" style="width:0px;height:0px;display:none;"></iframe>`;
 
                             var $iframe = $(iframe);
                             $body.append($iframe);
