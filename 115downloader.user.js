@@ -1,15 +1,15 @@
 // ==UserScript==
 // @name        115Downloader
-// @namespace   https://github.com/luoweihua7/tampermonkey.115downloader
-// @homepageURL https://github.com/luoweihua7/tampermonkey.115downloader
-// @supportURL  https://github.com/luoweihua7/tampermonkey.115downloader/issues
+// @namespace   https://github.com/haha1903/tampermonkey.115downloader
+// @homepageURL https://github.com/haha1903/tampermonkey.115downloader
+// @supportURL  https://github.com/haha1903/tampermonkey.115downloader/issues
 // @description 115网盘下载插件,提供复制下载链接到剪贴板,添加到Aria下载功能
 // @author      f0rger
 // @icon        http://115.com/web_icon.jpg
 // @include     http*://115.com/?ct=file*
 // @include     http*://115.com/?aid=-1&search*
-// @downloadURL https://github.com/luoweihua7/tampermonkey.115downloader/raw/master/115downloader.user.js
-// @updateURL   https://github.com/luoweihua7/tampermonkey.115downloader/raw/master/115downloader.user.js
+// @downloadURL https://github.com/haha1903/tampermonkey.115downloader/raw/master/115downloader.user.js
+// @updateURL   https://github.com/haha1903/tampermonkey.115downloader/raw/master/115downloader.user.js
 // @version     1.1.3
 // @grant       unsafeWindow
 // @grant       GM_setClipboard
@@ -252,11 +252,11 @@
             url: '',
             protocol: '',
             token: '',
-            host: 'localhost',
+            host: '192.168.1.17',
             port: 6800
         },
         init: function () {
-            var conf = GM_getValue(ARIA2.config.key) || 'http://localhost:6800/jsonrpc';
+            var conf = GM_getValue(ARIA2.config.key) || 'http://192.168.1.17:6800/jsonrpc';
             this.setConf(conf);
 
             // 添加Aria2的设置按钮
@@ -304,7 +304,7 @@
         },
         showConf: function () {
             var conf = this.config.conf;
-            var content = `<div class="dialog-input"><input type="text" rel="txt" class="text" placeholder="http://localhost:6800/jsonrpc" /></div>`;
+            var content = `<div class="dialog-input"><input type="text" rel="txt" class="text" placeholder="http://192.168.1.17:6800/jsonrpc" /></div>`;
             var options = {
                 content: content,
                 title: '设置RPC地址'
