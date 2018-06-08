@@ -354,10 +354,10 @@
                 //"dir" '/data/downloads/',
 
                 //分块下载
-                "split": "5",
+                "split": "1",
 
                 //连接数
-                "max-connection-per-server": "5",
+                "max-connection-per-server": "1",
 
                 //分享率(BT)
                 //"seed-ratio": "1.0",
